@@ -54,6 +54,28 @@ def read_and_prepare_data():
 
     return (irena_cap_db, irena_gen_db)
 
+def remove_negative_values(data, t):
+    for country in config.COUNTRIES:
+        years = list(data[data['country'] == country]['year'])
+        if len(years) == 0:
+            continue
+
+        for i in range(len(years) - 1):
+            year = years[-(i+1)]
+            previous_year = years[-(i+2)]
+            value = list(data[(data['year'] == year) & (data['country'] == country)]['cap'])[0]
+            if value < 0:
+                data['cap'] = np.where((data['year'] == previous_year) &
+                    (data['country'] == country), data['cap'] + value, data['cap'])
+                data['cap'] = np.where((data['year'] == year) & (data['country'] == country),
+                    0, data['cap'])
+
+        data['cap'] = np.where((data['country'] == country) & (data['year'] == years[0]) &
+            (data['cap'] < 0), 0, data['cap'])
+
+    return data
+
+
 def summarize_and_save(data, file, value_column):
     writer = pd.ExcelWriter(file, engine='xlsxwriter')
     for type in set(data['type']):
@@ -77,6 +99,9 @@ def summarize_and_save(data, file, value_column):
 
         data_by_type.drop(columns = [value_column], inplace=True)
         data_by_type.rename(columns={'diffs': value_column}, inplace=True)
+
+        if value_column == 'cap':
+            data_by_type = remove_negative_values(data_by_type, type)
 
         print(f'Saving data for {type}')
         data_by_type.to_excel(writer, sheet_name = type, index = False)

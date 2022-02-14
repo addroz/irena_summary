@@ -8,3 +8,5 @@ COUNTRIES = ['Austria', 'Belgium', 'Bulgaria', 'Croatia', 'Czechia', 'Denmark', 
     'Sweden', 'United Kingdom']
 
 YEARS = [2000, 2005, 2010, 2015, 2019, 2020]
+
+YEARS_CAP = [2000, 2005, 2010, 2015, 2020]
