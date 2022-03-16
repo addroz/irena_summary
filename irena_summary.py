@@ -109,44 +109,89 @@ def summarize_and_save(data, file, value_column):
     print(f'Results saved to: {file}')
     writer.save()
 
+def get_data_for_all_sheet(irena_db, variable):
+    data_for_all = irena_db.drop(columns = ['country'])
+    data_for_all = data_for_all.groupby(by = ['year', 'type']).sum().reset_index()
+    data_for_all = data_for_all[data_for_all['type'].isin(config.TYPES_TO_SUMMARY)]
+    data_for_all.sort_values(by = ['type', 'year'], inplace=True)
+    data_for_all['diffs'] = data_for_all.groupby(['type'])[variable]\
+        .transform(lambda x: x.diff().fillna(data_for_all[variable]))
+    data_for_all.sort_index(inplace=True)
+    data_for_all.drop(columns = [variable], inplace=True)
+    data_for_all.rename(columns={'diffs': variable, 'year': 'ID-year'}, inplace=True)
+    data_for_all['year'] = config.YEAR_DATA
+    if variable == 'cap':
+        data_for_all = remove_negative_values(data_for_all, 'type', config.TYPES_TO_SUMMARY)
+
+    data_for_all = data_for_all.set_index(['year', 'ID-year', 'type'])[variable]\
+            .unstack().reset_index()
+
+    return data_for_all
+
+def get_data_for_country_sheet(irena_db, variable, country):
+    data_by_country = (irena_db[(irena_db['country'] == country) &
+                                (irena_db['type'].isin(config.TYPES_TO_SUMMARY))]).copy()
+    data_by_country.sort_values(by = ['type', 'year'], inplace=True)
+    data_by_country['diffs'] = data_by_country.groupby(['type'])[variable]\
+        .transform(lambda x: x.diff().fillna(data_by_country[variable]))
+    data_by_country.sort_index(inplace=True)
+
+    data_by_country.drop(columns = [variable, 'country'], inplace=True)
+    data_by_country.rename(columns={'diffs': 'cap', 'year': 'ID-year'}, inplace=True)
+    data_by_country['year'] = config.YEAR_DATA
+    if variable == 'cap':
+        data_by_country = remove_negative_values(data_by_country, 'type', config.TYPES_TO_SUMMARY)
+
+    data_by_country = data_by_country.set_index(['year', 'ID-year', 'type'])[variable]\
+        .unstack().reset_index()
+
+    return data_by_country
+
 def create_irnw_inst_cap_file(irena_cap_db):
     irena_cap_db.replace(config.IRENA_TO_TYPES, inplace = True)
     irena_cap_db.replace(config.COUNTRIES_TO_ABBR, inplace = True)
     irena_cap_db = irena_cap_db.groupby(by = ['country', 'year', 'type']).sum()
     irena_cap_db.reset_index(inplace= True)
+
     writer = pd.ExcelWriter('process_irnw_inst-cap_intermediate.xlsx', engine='xlsxwriter')
+
+    data_for_all = get_data_for_all_sheet(irena_cap_db, 'cap')
+    data_for_all.to_excel(writer, sheet_name = 'ALL', index = False)
+
     for country in config.ABBR:
-        data_by_country = (irena_cap_db[(irena_cap_db['country'] == country) &
-                                        (irena_cap_db['type'].isin(config.TYPES_TO_SUMMARY))]).copy()
-        data_by_country.sort_values(by = ['type', 'year'], inplace=True)
-        data_by_country['diffs'] = data_by_country.groupby(['type'])['cap']\
-            .transform(lambda x: x.diff().fillna(data_by_country['cap']))
-        data_by_country.sort_index(inplace=True)
-
-        data_by_country.drop(columns = ['cap', 'country'], inplace=True)
-        data_by_country.rename(columns={'diffs': 'cap', 'year': 'ID-year'}, inplace=True)
-        data_by_country['year'] = config.YEAR_DATA
-        data_by_country = remove_negative_values(data_by_country, 'type', config.TYPES_TO_SUMMARY)
-
-        data_by_country = data_by_country.set_index(['year', 'ID-year', 'type'])['cap']\
-            .unstack().reset_index()
+        data_by_country = get_data_for_country_sheet(irena_cap_db, 'cap', country)
         data_by_country.to_excel(writer, sheet_name = country, index = False)
 
-    data_for_all = irena_cap_db.drop(columns = ['country'])
+    print(f'Results saved')
+    writer.save()
+
+def create_irnw_gen_file(irena_gen_db):
+    irena_gen_db.replace(config.IRENA_TO_TYPES, inplace = True)
+    irena_gen_db.replace(config.COUNTRIES_TO_ABBR, inplace = True)
+    irena_gen_db = irena_gen_db.groupby(by = ['country', 'year', 'type']).sum()
+    irena_gen_db.reset_index(inplace= True)
+
+    writer = pd.ExcelWriter('process_irnw_gen_intermediate.xlsx', engine='xlsxwriter')
+
+    data_for_all = irena_gen_db.drop(columns = ['country'])
     data_for_all = data_for_all.groupby(by = ['year', 'type']).sum().reset_index()
     data_for_all = data_for_all[data_for_all['type'].isin(config.TYPES_TO_SUMMARY)]
     data_for_all.sort_values(by = ['type', 'year'], inplace=True)
-    data_for_all['diffs'] = data_for_all.groupby(['type'])['cap']\
-        .transform(lambda x: x.diff().fillna(data_for_all['cap']))
-    data_for_all.sort_index(inplace=True)
-    data_for_all.drop(columns = ['cap'], inplace=True)
-    data_for_all.rename(columns={'diffs': 'cap', 'year': 'ID-year'}, inplace=True)
+    data_for_all = data_for_all.set_index(['year', 'ID-year', 'type'])['gen']\
+        .unstack().reset_index()
     data_for_all['year'] = config.YEAR_DATA
-    data_for_all = remove_negative_values(data_for_all, 'type', config.TYPES_TO_SUMMARY)
-
-    data_for_all = data_for_all.set_index(['year', 'ID-year', 'type'])['cap']\
-            .unstack().reset_index()
+    print(data_for_all)
     data_for_all.to_excel(writer, sheet_name = 'ALL', index = False)
+
+    for country in config.ABBR:
+        data_by_country = (irena_gen_db[(irena_gen_db['country'] == country) &
+                                (irena_gen_db['type'].isin(config.TYPES_TO_SUMMARY))]).copy()
+        data_by_country.sort_values(by = ['type', 'year'], inplace=True)
+        data_by_country = data_by_country.set_index(['year', 'ID-year', 'type'])['gen']\
+            .unstack().reset_index()
+        data_by_country['year'] = config.YEAR_DATA
+        print(data_by_country)
+        data_by_country.to_excel(writer, sheet_name = country, index = False)
 
     print(f'Results saved')
     writer.save()
@@ -163,3 +208,6 @@ if __name__ == '__main__':
 
     print('Creating process_irnw_inst-cap_intermediate.xlsx file')
     create_irnw_inst_cap_file(irena_cap_db)
+
+    #print('Creating process_irnw_gen_intermediate.xlsx file')
+    #create_irnw_gen_file(irena_gen_db)
