@@ -13,7 +13,7 @@ YEARS_CAP = [2000, 2005, 2010, 2015, 2020]
 
 YEAR_DATA = 2020
 
-IRENA_TO_TYPES = {'Concentrated solar power': 'OpenSolarPV',
+IRENA_TO_TYPES = {'Concentrated solar power': 'Other',
                   'Offshore wind energy': 'WindOff',
                   'Solar photovoltaic': 'RoofSolarPV',
                   'Mixed Hydro Plants': 'Hydro',
